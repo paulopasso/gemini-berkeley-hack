@@ -1,0 +1,242 @@
+services:
+  redis:
+    container_name: "${NAME}-redis"
+    image: redis:7-alpine
+    ports:
+      - "${REDIS_PORT}:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+  backend-fastapi:
+    container_name: "${NAME}-backend-fastapi"
+    build:
+      context: ./
+      dockerfile: ./docker/fastapi.Dockerfile
+    ports:
+      - "${BACKEND_PORT:-5000}:5000"
+    environment:
+      - PORT=5000
+      - PYTHONPATH=/app
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-app}
+      - ML_URL=${ML_URL:-http://ml-inference:8000}
+      - BACKEND_STARTUP_SEED_MODE=${BACKEND_STARTUP_SEED_MODE:-always}
+      - BACKEND_STARTUP_SEED_NODE_COUNT=${BACKEND_STARTUP_SEED_NODE_COUNT:-8}
+      - BACKEND_STARTUP_SEED_SEVERE_RATIO=${BACKEND_STARTUP_SEED_SEVERE_RATIO:-0.1}
+      - BACKEND_STARTUP_SEED_MODERATE_RATIO=${BACKEND_STARTUP_SEED_MODERATE_RATIO:-0.1}
+      - BACKEND_STARTUP_SEED_HISTORY_POINTS=${BACKEND_STARTUP_SEED_HISTORY_POINTS:-120}
+      - BACKEND_STARTUP_SEED_INTERVAL_MINUTES=${BACKEND_STARTUP_SEED_INTERVAL_MINUTES:-5}
+      - BACKEND_STARTUP_SEED_RANDOM_SEED=${BACKEND_STARTUP_SEED_RANDOM_SEED:-42}
+    volumes:
+      - ./.env:/app/.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  backend-classifier:
+    container_name: "${NAME}-backend-classifier"
+    build:
+      context: ./
+      dockerfile: ./docker/worker.Dockerfile
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - PYTHONPATH=/app
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-app}
+      - CLASSIFIER_INTERVAL_SECONDS=${CLASSIFIER_INTERVAL_SECONDS:-5}
+      - ML_URL=${ML_URL:-http://ml-inference:8000}
+    command: ["celery", "-A", "worker.worker:app", "beat", "--loglevel=info"]
+    volumes:
+      - ./.env:/app/.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    restart: unless-stopped
+
+  ml-inference:
+    container_name: "${NAME}-mlinfer"
+    profiles: ["ml"]
+    build:
+      context: ./
+      dockerfile: ./docker/ml.Dockerfile
+    ports:
+      - "8200:8000"
+    environment:
+      - ML_LATEST_WEIGHTS_PATH=${ML_LATEST_WEIGHTS_PATH:-}
+      - ML_MODEL_FILE=${ML_MODEL_FILE:-}
+      - PYTHONPATH=${PYTHONPATH:-/app}
+    volumes:
+      - ./ml/models:/app/ml/models
+      - ./.env:/app/.env
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  worker:
+    container_name: "${NAME}-worker"
+    build:
+      context: ./
+      dockerfile: ./docker/worker.Dockerfile
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - PYTHONPATH=/app
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-app}
+      - ML_URL=${ML_URL:-http://ml-inference:8000}
+    command: ["celery", "-A", "worker.worker:app", "worker", "--loglevel=info"]
+    volumes:
+      - ./.env:/app/.env
+    depends_on:
+      redis:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  node-simulator:
+    container_name: "${NAME}-node-simulator"
+    profiles: ["sim"]
+    build:
+      context: ./
+      dockerfile: ./docker/simulator.Dockerfile
+    environment:
+      - SIM_BACKEND_URL=http://backend-fastapi:5000
+      - SIM_NODE_ID=${SIM_NODE_ID:-BEL-VLV-003}
+      - SIM_PROFILE=${SIM_PROFILE:-gear_stuck}
+      - SIM_SPEED=${SIM_SPEED:-1.0}
+      - SIM_LOOP=${SIM_LOOP:-1}
+    depends_on:
+      - backend-fastapi
+    restart: unless-stopped
+
+  minio:
+    image: minio/minio:latest
+    container_name: "${NAME}-minio"
+    profiles: ["minio"]
+    ports:
+      - "9900:9000"   # API endpoint
+      - "9901:9001"   # Web console
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    restart: unless-stopped
+
+  create-bucket:
+    image: minio/mc
+    container_name: "${NAME}-create-bucket"
+    profiles: ["minio"]
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      sleep 5;
+      mc alias set myminio http://minio:9000 minioadmin minioadmin;
+      mc mb myminio/${NAME:-app} --ignore-existing;
+      exit 0;
+      "
+
+  tensorboard:
+    image: tensorflow/tensorflow:latest
+    container_name: "${NAME}-tensorboard"
+    profiles: ["tensorboard"]
+    ports:
+      - "6006:6006"
+    volumes:
+      - ./ml/tensorboard:/logs
+    command: tensorboard --logdir=/logs --host=0.0.0.0 --port=6006
+    restart: unless-stopped
+
+  mlflow:
+    image: python:3.12-slim
+    container_name: "${NAME}-mlflow"
+    profiles: ["mlflow"]
+    ports:
+      - "5000:5000"
+    volumes:
+      - mlflow_data:/mlflow
+    command: >
+      /bin/sh -c "
+      pip install --no-cache-dir mlflow &&
+      mlflow server
+      --host 0.0.0.0
+      --port 5000
+      --backend-store-uri sqlite:////mlflow/mlflow.db
+      --default-artifact-root /mlflow/artifacts
+      "
+    restart: unless-stopped
+
+  # Logging Infrastructure - Minimal Setup
+  loki:
+    image: grafana/loki:2.9.0
+    container_name: "${NAME}-loki"
+    profiles: ["logging"]
+    ports:
+      - "${LOKI_PORT}:3100"
+    volumes:
+      - loki_data:/loki
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:10.2.0
+    container_name: "${NAME}-grafana"
+    profiles: ["logging"]
+    ports:
+      - "${GRAFANA_PORT}:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+    restart: unless-stopped
+
+  # Database Services
+  postgres:
+    image: postgres:15-alpine
+    container_name: "${NAME}-postgres"
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-app}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-app}"
+        ]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+      start_period: 5s
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # place .sql files in ./database/ to auto-run on first start
+      - ./database/:/docker-entrypoint-initdb.d/:ro
+    restart: unless-stopped
+
+  mongodb:
+    image: mongo:7-jammy
+    container_name: "${NAME}-mongodb"
+    profiles: ["database", "mongodb"]
+    ports:
+      - "${MONGO_PORT:-27017}:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-admin123}
+      MONGO_INITDB_DATABASE: ${MONGO_DB:-app}
+    volumes:
+      - mongodb_data:/data/db
+    restart: unless-stopped
+
+volumes:
+  redis_data:
+  minio_data:
+  loki_data:
+  grafana_data:
+  postgres_data:
+  mongodb_data:
+  mlflow_data:

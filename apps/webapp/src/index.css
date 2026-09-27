@@ -1,0 +1,219 @@
+@import url('https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: light;
+
+    --background: 0 0% 100%;
+    --foreground: 222 47% 11%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    --primary: 222 47% 11%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 200 5% 90%;
+    --secondary-foreground: 222 47% 11%;
+
+    --muted: 200 5% 91%;
+    --muted-foreground: 200 5% 38%;
+
+    --accent: 200 5% 91%;
+    --accent-foreground: 222 47% 11%;
+
+    --brand: 24 100% 51%;
+    --brand-foreground: 0 0% 100%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 38 92% 10%;
+
+    --border: 200 5% 85%;
+    --input: 200 5% 85%;
+    --ring: 24 100% 51%;
+
+    --radius: 2px;
+
+    --sidebar-background: 200 10% 93%;
+    --sidebar-foreground: 220 15% 35%;
+    --sidebar-primary: 222 47% 11%;
+    --sidebar-primary-foreground: 200 10% 93%;
+    --sidebar-accent: 200 10% 86%;
+    --sidebar-accent-foreground: 222 47% 11%;
+    --sidebar-border: 200 8% 82%;
+    --sidebar-ring: 24 100% 51%;
+
+    --status-healthy: 150 100% 36%;
+    --status-warning: 38 92% 50%;
+    --status-fault: 0 72% 51%;
+    --status-offline: 200 5% 58%;
+
+    --font-display: 'Manrope', system-ui, sans-serif;
+    --font-body: 'Geist Mono', ui-monospace, monospace;
+
+    --ease-swift: cubic-bezier(0.2, 0, 0, 1);
+  }
+
+  .dark {
+    color-scheme: dark;
+
+    --background: 225 12% 5%;
+    --foreground: 30 5% 95%;
+
+    --card: 225 12% 8%;
+    --card-foreground: 30 5% 95%;
+
+    --popover: 225 10% 11%;
+    --popover-foreground: 30 5% 95%;
+
+    --primary: 30 5% 95%;
+    --primary-foreground: 225 12% 5%;
+
+    --secondary: 225 12% 12%;
+    --secondary-foreground: 30 5% 80%;
+
+    --muted: 225 10% 14%;
+    --muted-foreground: 220 8% 55%;
+
+    --accent: 225 10% 16%;
+    --accent-foreground: 30 5% 85%;
+
+    --brand: 24 100% 55%;
+    --brand-foreground: 0 0% 100%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --warning: 38 92% 55%;
+    --warning-foreground: 38 92% 10%;
+
+    --border: 225 10% 14%;
+    --input: 225 10% 14%;
+    --ring: 24 100% 55%;
+
+    --radius: 2px;
+
+    --sidebar-background: 225 15% 4%;
+    --sidebar-foreground: 220 8% 65%;
+    --sidebar-primary: 30 5% 95%;
+    --sidebar-primary-foreground: 225 15% 4%;
+    --sidebar-accent: 225 12% 9%;
+    --sidebar-accent-foreground: 30 5% 95%;
+    --sidebar-border: 225 12% 9%;
+    --sidebar-ring: 24 100% 55%;
+
+    --status-healthy: 150 85% 45%;
+    --status-warning: 38 92% 55%;
+    --status-fault: 0 72% 55%;
+    --status-offline: 220 5% 35%;
+
+    --font-display: 'Manrope', system-ui, sans-serif;
+    --font-body: 'Geist Mono', ui-monospace, monospace;
+
+    --ease-swift: cubic-bezier(0.2, 0, 0, 1);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: var(--font-body);
+    font-feature-settings: 'tnum' on, 'lnum' on;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1, h2, h3, h4, h5, h6, .font-display {
+    font-family: var(--font-display);
+    letter-spacing: -0.04em;
+  }
+
+  .label-caps {
+    @apply text-[10px] font-medium tracking-[0.08em] uppercase text-muted-foreground;
+  }
+
+  .data-row {
+    @apply flex items-center px-4 py-3 border-b border-border transition-colors;
+  }
+
+  .data-row:hover {
+    background: hsl(var(--muted));
+  }
+
+  .duct-flow {
+    animation: ductFlow linear infinite;
+  }
+
+  @keyframes ductFlow {
+    to { stroke-dashoffset: -20; }
+  }
+
+  .airflow-expand {
+    animation: airflowExpand ease-in-out infinite;
+  }
+
+  .airflow-contract {
+    animation: airflowContract ease-in-out infinite;
+  }
+
+  @keyframes airflowExpand {
+    0% { r: 6; opacity: 0; }
+    10% { opacity: 0.3; }
+    70% { opacity: 0.15; }
+    100% { r: 55; opacity: 0; }
+  }
+
+  @keyframes airflowContract {
+    0% { r: 55; opacity: 0; }
+    30% { opacity: 0.15; }
+    90% { opacity: 0.3; }
+    100% { r: 6; opacity: 0; }
+  }
+
+  .sidebar-active-bar {
+    @apply relative;
+  }
+  .sidebar-active-bar::before {
+    content: '';
+    @apply absolute left-0 top-1 bottom-1 w-[3px] rounded-r-sm;
+    background: hsl(var(--brand));
+  }
+
+  .card-accent-top {
+    border-top: 2px solid hsl(var(--brand));
+  }
+
+  .fault-card-accent {
+    border-left: 3px solid currentColor;
+  }
+
+  .data-row-header {
+    background: hsl(var(--muted) / 0.5);
+  }
+
+  .dark .card-accent-top {
+    box-shadow: none;
+  }
+
+  .dark .data-row:hover {
+    background: hsl(var(--muted) / 0.8);
+  }
+
+  .dark .fault-card-accent {
+    box-shadow: none;
+  }
+}

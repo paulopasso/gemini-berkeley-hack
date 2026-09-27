@@ -1,0 +1,41 @@
+# Legacy fallback only. Primary deps live in pyproject.toml.
+# Core - always installed
+python-dotenv
+requests
+tqdm
+
+# Logging (shacklib)
+python-logging-loki
+
+# Backend (fastapi or flask)
+fastapi
+flask
+flask-cors
+uvicorn[standard]
+pydantic
+psycopg[binary]
+python-multipart
+
+# Worker (Celery + Redis)
+celery[redis]
+redis
+
+# Scraper (shacklib)
+seleniumbase
+beautifulsoup4
+
+# Minimal webapp
+streamlit
+
+# AI / Agent SDK
+anthropic
+
+# ML (heavy - comment out if not needed)
+# torch
+# tensorboard
+influxdb-client
+numpy
+pandas
+scikit-learn
+scipy
+xgboost
